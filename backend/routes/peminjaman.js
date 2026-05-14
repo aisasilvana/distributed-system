@@ -1,18 +1,22 @@
 const router = require('express').Router();
 const Peminjaman = require('../models/Peminjaman');
 const Alat = require('../models/Alat');
-const auth = require('../middleware/auth'); // 🔥 tambah middleware
+const auth = require('../middleware/auth');
 
-// 🔥 CREATE PEMINJAMAN
+// CREATE PEMINJAMAN
 router.post('/', auth, async (req, res) => {
   try {
     const { alatId, jumlah, tanggalKembali, keperluan } = req.body;
+
+    if (!alatId || !jumlah || !tanggalKembali || !keperluan) {
+      return res.status(400).json({ msg: 'Semua field wajib diisi' });
+    }
 
     const alat = await Alat.findById(alatId);
     if (!alat) return res.status(404).json({ msg: 'Alat tidak ditemukan' });
 
     if (alat.stok < jumlah) {
-      return res.status(400).json({ msg: 'Stok tidak cukup' });
+      return res.status(400).json({ msg: `Stok tidak cukup. Tersedia: ${alat.stok}` });
     }
 
     alat.stok -= jumlah;
@@ -20,65 +24,72 @@ router.post('/', auth, async (req, res) => {
 
     const peminjaman = new Peminjaman({
       alatId,
-      userId: req.user.id, // 🔥 simpan siapa yang pinjam
+      userId: req.user.id,
       jumlah,
-      tanggalKembali,
       keperluan,
+      tanggalKembali: new Date(tanggalKembali),
       tanggalPinjam: new Date(),
-      status: 'Menunggu' // 🔥 mulai dari Menunggu, bukan langsung Dipinjam
+      status: 'Menunggu',
     });
 
     await peminjaman.save();
     res.json({ msg: 'Berhasil ajukan peminjaman' });
 
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ msg: 'Gagal pinjam' });
+    console.error('POST /peminjaman error:', err);
+    res.status(500).json({ msg: 'Gagal pinjam', error: err.message });
   }
 });
 
-// 🔥 GET PEMINJAMAN
+// GET PEMINJAMAN
 router.get('/', auth, async (req, res) => {
   try {
-    const data = await Peminjaman.find()
-      .populate('alatId', 'nama') // 🔥 populate alat
-      .populate('userId', 'nama email') // 🔥 populate user
+    // mahasiswa hanya lihat miliknya, admin/dosen lihat semua
+    const filter = req.user.role === 'mahasiswa'
+      ? { userId: req.user.id }
+      : {};
+
+    const data = await Peminjaman.find(filter)
+      .populate('alatId', 'nama stok')
+      .populate('userId', 'nama email')
       .sort({ createdAt: -1 });
 
-    // 🔥 rename field agar cocok dengan frontend (p.alat, p.user)
     const result = data.map(p => ({
       _id: p._id,
       alat: p.alatId,
       user: p.userId,
       jumlah: p.jumlah,
+      keperluan: p.keperluan,
       tanggalPinjam: p.tanggalPinjam,
       tanggalKembali: p.tanggalKembali,
-      keperluan: p.keperluan,
-      status: p.status
+      status: p.status,
     }));
 
     res.json(result);
   } catch (err) {
-    res.status(500).json({ msg: 'Gagal ambil data' });
+    console.error('GET /peminjaman error:', err);
+    res.status(500).json({ msg: 'Gagal ambil data', error: err.message });
   }
 });
 
-// 🔥 SETUJUI
+// SETUJUI PEMINJAMAN
 router.put('/:id/setujui', auth, async (req, res) => {
   try {
     await Peminjaman.findByIdAndUpdate(req.params.id, { status: 'Dipinjam' });
-    res.json({ msg: 'Disetujui' });
+    res.json({ msg: 'Peminjaman disetujui' });
   } catch (err) {
+    console.error('PUT /setujui error:', err);
     res.status(500).json({ msg: 'Gagal setujui' });
   }
 });
 
-// 🔥 KEMBALIKAN
+// KEMBALIKAN ALAT
 router.put('/:id/kembalikan', auth, async (req, res) => {
   try {
     const p = await Peminjaman.findById(req.params.id);
-    
-    // kembalikan stok
+    if (!p) return res.status(404).json({ msg: 'Data tidak ditemukan' });
+
+    // Kembalikan stok
     const alat = await Alat.findById(p.alatId);
     if (alat) {
       alat.stok += p.jumlah;
@@ -86,8 +97,9 @@ router.put('/:id/kembalikan', auth, async (req, res) => {
     }
 
     await Peminjaman.findByIdAndUpdate(req.params.id, { status: 'Dikembalikan' });
-    res.json({ msg: 'Dikembalikan' });
+    res.json({ msg: 'Alat berhasil dikembalikan' });
   } catch (err) {
+    console.error('PUT /kembalikan error:', err);
     res.status(500).json({ msg: 'Gagal kembalikan' });
   }
 });

@@ -9,7 +9,10 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-mongoose.connect(process.env.MONGO_URI); // ← ganti juga ini pakai .env
+// mongoose.connect(process.env.MONGO_URI); // ← ganti juga ini pakai .env
+mongoose.connect(process.env.MONGO_URI)
+    .then(() => console.log('MongoDB conected'))
+    .catch((err => console.log(err)))
 
 app.use('/auth', require('./routes/auth'));
 app.use('/alat', require('./routes/alat'));

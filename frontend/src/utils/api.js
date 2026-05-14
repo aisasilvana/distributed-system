@@ -1,10 +1,9 @@
 import axios from 'axios';
 
 const API = axios.create({
-  baseURL: 'http://localhost:5000'
+  baseURL: 'http://localhost:5000', // ← sudah benar, JANGAN tambah /api
 });
 
-// 🔥 TAMBAHKAN INI - otomatis kirim token
 API.interceptors.request.use((config) => {
   const token = localStorage.getItem('token');
   if (token) {
