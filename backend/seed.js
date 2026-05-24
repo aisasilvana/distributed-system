@@ -1,14 +1,19 @@
 require('dotenv').config();
 const mongoose = require('mongoose');
-const Alat = require('./models/Alat');
+const Alat = require('./models/alat'); 
+const Peminjaman = require('./models/peminjaman'); // 👈 TAMBAHKAN INI (sesuaikan nama file modelnya)
 
 async function seed() {
   try {
     await mongoose.connect(process.env.MONGO_URI);
     console.log('✅ MongoDB connected');
 
+    // 👈 TAMBAHKAN INI UNTUK MEMBERSIHKAN DATA PEMINJAMAN YANG ERROR
+    await Peminjaman.deleteMany({});
+    console.log('🗑️ Data Peminjaman lama yang rusak berhasil dihapus');
+
     await Alat.deleteMany({});
-    console.log('🗑️ Data lama dihapus');
+    console.log('🗑️ Data Alat lama dihapus');
 
     const result = await Alat.insertMany([
       { nama: 'Access Point', stok: 5 },

@@ -1,12 +1,20 @@
 import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { FaChevronLeft, FaChevronRight, FaTachometerAlt, FaClipboardList, FaBell } from 'react-icons/fa';
+import { 
+  FaChevronLeft, 
+  FaChevronRight, 
+  FaTachometerAlt, 
+  FaClipboardList, 
+  FaBell, 
+  FaUserCircle,
+  FaSignOutAlt // Import icon logout dari react-icons/fa
+} from 'react-icons/fa';
 import DashboardHome from './dashboardhome';
 import Inventaris from './inventaris'; 
 import Peminjaman from './peminjaman'; 
 import Notifikasi from './notifikasi'; 
 
-export default function Dashboard({ user }) {
+export default function Dashboard({ user, onLogout }) {
   const [page, setPage] = useState('dashboard');
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const canvasRef = useRef(null);
@@ -70,10 +78,9 @@ export default function Dashboard({ user }) {
   };
 
   return (
-    // HAPUS background: '#020617' dari div utama ini
     <div style={{ display: 'flex', minHeight: '100vh', fontFamily: "'Inter', sans-serif" }}>
       
-      {/* CANVAS BACKGROUND (Warna background dipindah ke sini) */}
+      {/* CANVAS BACKGROUND */}
       <canvas 
         ref={canvasRef} 
         style={{ 
@@ -81,7 +88,7 @@ export default function Dashboard({ user }) {
           inset: 0, 
           zIndex: -1, 
           pointerEvents: 'none',
-          background: '#020617' // Warna gelapnya dipasang langsung di canvas
+          background: '#020617' 
         }} 
       />
       
@@ -126,6 +133,83 @@ export default function Dashboard({ user }) {
             </div>
           ))}
         </nav>
+
+        {/* --- BAGIAN AKUN USER DAN TOMBOL LOGOUT --- */}
+        <div 
+          style={{ 
+            marginTop: 'auto', 
+            padding: sidebarOpen ? '15px 20px' : '15px 0', 
+            borderTop: '1px solid rgba(56,189,248,0.1)',
+            display: 'flex', 
+            flexDirection: sidebarOpen ? 'row' : 'column',
+            alignItems: 'center', 
+            justifyContent: sidebarOpen ? 'space-between' : 'center',
+            gap: sidebarOpen ? '12px' : '15px',
+            overflow: 'hidden',
+            transition: 'padding 0.3s ease, gap 0.3s ease'
+          }}
+        >
+          {/* Sisi Kiri: Avatar & Informasi Nama (Hanya jika Sidebar Terbuka) */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px', minWidth: 0 }}>
+            {/* Logo / Avatar Akun */}
+            <div style={{ fontSize: '26px', color: '#38bdf8', minWidth: '26px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <FaUserCircle />
+            </div>
+
+            {sidebarOpen && (
+              <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}>
+                <span style={{ 
+                  color: '#f8fafc', 
+                  fontSize: '13px', 
+                  fontWeight: '600', 
+                  whiteSpace: 'nowrap', 
+                  overflow: 'hidden', 
+                  textOverflow: 'ellipsis' 
+                }}>
+                  {user?.nama || user?.name || 'nisa'}
+                </span>
+                <span style={{ 
+                  color: '#64748b', 
+                  fontSize: '10px', 
+                  whiteSpace: 'nowrap', 
+                  overflow: 'hidden', 
+                  textOverflow: 'ellipsis',
+                  textTransform: 'lowercase'
+                }}>
+                  {user?.role || 'mahasiswa'}
+                </span>
+              </div>
+            )}
+          </div>
+
+          {/* Sisi Kanan / Bawah: Tombol Logout */}
+          <button 
+            onClick={() => onLogout && onLogout()}
+            title="Keluar"
+            style={{ 
+              background: 'transparent', 
+              border: 'none', 
+              color: '#ef4444', 
+              cursor: 'pointer', 
+              padding: '6px', 
+              display: 'flex', 
+              alignItems: 'center', 
+              justifyContent: 'center',
+              borderRadius: '6px', 
+              transition: 'all 0.2s ease-in-out'
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.backgroundColor = 'rgba(239, 68, 68, 0.1)';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.backgroundColor = 'transparent';
+            }}
+          >
+            <FaSignOutAlt style={{ fontSize: '18px' }} />
+          </button>
+        </div>
+        {/* ------------------------------------------- */}
+
       </motion.div>
 
       {/* Main Content Area */}

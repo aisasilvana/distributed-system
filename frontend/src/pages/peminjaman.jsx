@@ -239,6 +239,475 @@ export default function Peminjaman({ user }) {
     }).replace(',', ' -');
   };
 
+ // --- LOGIKA CETAK BUKTI TRANSAKSI (VERSI MODERN COMMAND CENTER) ---
+  const handlePrint = (data) => {
+    if (!data) return;
+
+    // Helper formatter tanggal
+    const formatCustomDate = (dateString) => {
+      if (!dateString) return { date: '-', time: '-' };
+      const d = new Date(dateString);
+      const date = d.toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' });
+      const time = d.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
+      return { date, time };
+    };
+
+    const pinjam = formatCustomDate(data.tanggalPinjam);
+    const kembali = formatCustomDate(data.tanggalKembali);
+    
+    // Generate ID Transaksi unik
+    const transactionId = `CCX-${new Date().getFullYear()}${String(new Date().getMonth()+1).padStart(2, '0')}-${Math.random().toString(36).substring(2, 6).toUpperCase()}`;
+
+    // Warna dinamis berdasarkan status
+    const getStatusColor = (status) => {
+      if (status === 'Dipinjam') return { bg: '#e0f2fe', text: '#0284c7', border: '#38bdf8' };
+      if (status === 'Dikembalikan' || status === 'Kembali') return { bg: '#dcfce7', text: '#166534', border: '#4ade80' };
+      if (status === 'Menunggu') return { bg: '#fef08a', text: '#854d0e', border: '#facc15' };
+      if (status === 'Ditolak') return { bg: '#fee2e2', text: '#991b1b', border: '#f87171' };
+      return { bg: '#f1f5f9', text: '#475569', border: '#cbd5e1' };
+    };
+
+    const statusStyle = getStatusColor(data.status);
+
+    // SVG Logo Kustom (Logo Command Center Modern)
+    const customLogo = `
+      <svg width="48" height="48" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <rect width="48" height="48" rx="12" fill="#0f172a"/>
+        <path d="M14 24L22 32L34 16" stroke="#0ea5e9" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+        <path d="M10 10H16M10 16H14" stroke="#38bdf8" stroke-width="2" stroke-linecap="round"/>
+        <circle cx="38" cy="38" r="3" fill="#38bdf8"/>
+        <circle cx="10" cy="38" r="3" fill="#38bdf8"/>
+        <circle cx="38" cy="10" r="3" fill="#38bdf8"/>
+      </svg>
+    `;
+
+    // SVG Barcode tiruan untuk estetika
+    const fakeBarcode = `
+      <svg width="120" height="30" viewBox="0 0 120 30" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <rect x="0" width="4" height="30" fill="#0f172a"/><rect x="6" width="2" height="30" fill="#0f172a"/>
+        <rect x="10" width="6" height="30" fill="#0f172a"/><rect x="18" width="2" height="30" fill="#0f172a"/>
+        <rect x="22" width="4" height="30" fill="#0f172a"/><rect x="30" width="8" height="30" fill="#0f172a"/>
+        <rect x="40" width="2" height="30" fill="#0f172a"/><rect x="46" width="4" height="30" fill="#0f172a"/>
+        <rect x="52" width="6" height="30" fill="#0f172a"/><rect x="62" width="2" height="30" fill="#0f172a"/>
+        <rect x="68" width="8" height="30" fill="#0f172a"/><rect x="78" width="4" height="30" fill="#0f172a"/>
+        <rect x="84" width="2" height="30" fill="#0f172a"/><rect x="88" width="6" height="30" fill="#0f172a"/>
+        <rect x="96" width="4" height="30" fill="#0f172a"/><rect x="104" width="2" height="30" fill="#0f172a"/>
+        <rect x="108" width="8" height="30" fill="#0f172a"/><rect x="118" width="2" height="30" fill="#0f172a"/>
+      </svg>
+    `;
+
+    const printWindow = window.open('', '_blank');
+    printWindow.document.write(`
+      <html>
+        <head>
+          <title>INVOICE - ${transactionId}</title>
+          <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+          <style>
+            @page { size: A4; margin: 0; }
+            body {
+              font-family: 'Inter', sans-serif;
+              background-color: #f8fafc;
+              color: #0f172a;
+              margin: 0;
+              padding: 40px;
+              -webkit-print-color-adjust: exact !important;
+              print-color-adjust: exact !important;
+            }
+            .document-container {
+              max-width: 800px;
+              margin: 0 auto;
+              background: #ffffff;
+              border-radius: 20px;
+              padding: 40px;
+              box-shadow: 0 10px 30px rgba(0,0,0,0.05);
+              border: 1px solid #e2e8f0;
+              position: relative;
+              overflow: hidden;
+            }
+            
+            /* Aksen garis atas */
+            .top-accent {
+              position: absolute;
+              top: 0;
+              left: 0;
+              right: 0;
+              height: 6px;
+              background: linear-gradient(90deg, #0ea5e9, #38bdf8);
+            }
+
+            /* Watermark background */
+            .watermark {
+              position: absolute;
+              top: 50%;
+              left: 50%;
+              transform: translate(-50%, -50%) rotate(-30deg);
+              font-family: 'Space Grotesk', sans-serif;
+              font-size: 120px;
+              font-weight: 700;
+              color: rgba(241, 245, 249, 0.6);
+              white-space: nowrap;
+              z-index: 0;
+              pointer-events: none;
+            }
+
+            .content-wrapper {
+              position: relative;
+              z-index: 1;
+            }
+
+            /* --- HEADER --- */
+            .header {
+              display: flex;
+              justify-content: space-between;
+              align-items: flex-start;
+              border-bottom: 2px dashed #cbd5e1;
+              padding-bottom: 25px;
+              margin-bottom: 30px;
+            }
+            .header-left { display: flex; align-items: center; gap: 16px; }
+            .brand-info h1 {
+              font-family: 'Space Grotesk', sans-serif;
+              margin: 0;
+              font-size: 24px;
+              color: #0f172a;
+              letter-spacing: -0.5px;
+            }
+            .brand-info p {
+              margin: 4px 0 0 0;
+              font-size: 13px;
+              color: #64748b;
+              font-weight: 500;
+              text-transform: uppercase;
+              letter-spacing: 1px;
+            }
+            .header-right { text-align: right; }
+            .trx-id {
+              font-family: 'JetBrains Mono', monospace;
+              font-size: 18px;
+              font-weight: 700;
+              color: #0ea5e9;
+              margin: 0 0 4px 0;
+            }
+            .print-date {
+              font-size: 12px;
+              color: #94a3b8;
+            }
+
+            /* --- MAIN INFO CARDS --- */
+            .info-grid {
+              display: grid;
+              grid-template-columns: 1fr 1fr;
+              gap: 20px;
+              margin-bottom: 30px;
+            }
+            .info-card {
+              background: #f8fafc;
+              border: 1px solid #e2e8f0;
+              border-radius: 12px;
+              padding: 20px;
+            }
+            .card-label {
+              font-size: 11px;
+              text-transform: uppercase;
+              color: #64748b;
+              letter-spacing: 0.5px;
+              margin-bottom: 6px;
+              font-weight: 600;
+            }
+            .card-value {
+              font-size: 16px;
+              font-weight: 600;
+              color: #0f172a;
+            }
+            .status-badge {
+              display: inline-block;
+              padding: 6px 14px;
+              border-radius: 8px;
+              font-size: 12px;
+              font-weight: 700;
+              text-transform: uppercase;
+              letter-spacing: 0.5px;
+              margin-top: 10px;
+              background-color: ${statusStyle.bg};
+              color: ${statusStyle.text};
+              border: 1px solid ${statusStyle.border};
+            }
+
+            /* --- ITEM DETAILS --- */
+            .item-section {
+              background: #ffffff;
+              border: 1px solid #cbd5e1;
+              border-radius: 12px;
+              overflow: hidden;
+              margin-bottom: 30px;
+            }
+            .item-header {
+              background: #f1f5f9;
+              padding: 12px 20px;
+              font-size: 12px;
+              font-weight: 600;
+              color: #475569;
+              text-transform: uppercase;
+              border-bottom: 1px solid #cbd5e1;
+            }
+            .item-body {
+              display: flex;
+              justify-content: space-between;
+              align-items: center;
+              padding: 20px;
+            }
+            .item-name {
+              font-family: 'Space Grotesk', sans-serif;
+              font-size: 20px;
+              font-weight: 700;
+              color: #0f172a;
+            }
+            .item-qty {
+              background: #0ea5e9;
+              color: white;
+              padding: 6px 16px;
+              border-radius: 20px;
+              font-size: 14px;
+              font-weight: 600;
+            }
+
+            /* --- TIMELINE --- */
+            .timeline-container {
+              position: relative;
+              padding: 20px 0;
+              margin-bottom: 30px;
+            }
+            .timeline-line {
+              position: absolute;
+              top: 35px;
+              left: 10%;
+              right: 10%;
+              height: 2px;
+              background: repeating-linear-gradient(to right, #cbd5e1 0, #cbd5e1 5px, transparent 5px, transparent 10px);
+              z-index: 1;
+            }
+            .timeline-points {
+              display: flex;
+              justify-content: space-between;
+              position: relative;
+              z-index: 2;
+              padding: 0 5%;
+            }
+            .point {
+              text-align: center;
+              background: #ffffff;
+              padding: 0 10px;
+            }
+            .point-icon {
+              width: 32px;
+              height: 32px;
+              border-radius: 50%;
+              background: #f8fafc;
+              border: 2px solid #0ea5e9;
+              margin: 0 auto 10px auto;
+              display: flex;
+              align-items: center;
+              justify-content: center;
+              color: #0ea5e9;
+              font-weight: bold;
+              font-size: 14px;
+            }
+            .point-label {
+              font-size: 11px;
+              text-transform: uppercase;
+              color: #64748b;
+              font-weight: 600;
+              margin-bottom: 4px;
+            }
+            .point-date {
+              font-family: 'JetBrains Mono', monospace;
+              font-size: 14px;
+              font-weight: 700;
+              color: #0f172a;
+            }
+
+            /* --- KEPERLUAN BOX --- */
+            .purpose-box {
+              background: #f8fafc;
+              border-left: 4px solid #0ea5e9;
+              padding: 16px 20px;
+              border-radius: 0 8px 8px 0;
+              margin-bottom: 40px;
+            }
+            .purpose-box p { margin: 0; font-size: 14px; line-height: 1.6; color: #334155; }
+
+            /* --- SIGNATURES --- */
+            .signature-grid {
+              display: grid;
+              grid-template-columns: repeat(3, 1fr);
+              gap: 20px;
+              text-align: center;
+              margin-bottom: 40px;
+            }
+            .sig-title {
+              font-size: 13px;
+              color: #64748b;
+              font-weight: 500;
+              margin-bottom: 60px;
+            }
+            .sig-line {
+              border-top: 1px solid #94a3b8;
+              width: 80%;
+              margin: 0 auto 8px auto;
+            }
+            .sig-name {
+              font-size: 14px;
+              font-weight: 600;
+              color: #0f172a;
+            }
+
+            /* --- FOOTER --- */
+            .footer {
+              display: flex;
+              justify-content: space-between;
+              align-items: flex-end;
+              border-top: 1px solid #e2e8f0;
+              padding-top: 20px;
+            }
+            .footer-terms {
+              font-size: 11px;
+              color: #94a3b8;
+              max-width: 60%;
+              line-height: 1.5;
+            }
+            .barcode-container {
+              text-align: right;
+            }
+
+            @media print {
+              body { background-color: transparent; padding: 0; }
+              .document-container { box-shadow: none; border: none; }
+            }
+          </style>
+        </head>
+        <body>
+          <div class="document-container">
+            <div class="top-accent"></div>
+            <div class="watermark">SECURE AUTH</div>
+            
+            <div class="content-wrapper">
+              
+              <!-- Header Section -->
+              <div class="header">
+                <div class="header-left">
+                  ${customLogo}
+                  <div class="brand-info">
+                    <h1>Command Center</h1>
+                    <p>Logistics & Inventory System</p>
+                  </div>
+                </div>
+                <div class="header-right">
+                  <p class="trx-id">${transactionId}</p>
+                  <p class="print-date">Generated: ${new Date().toLocaleString('id-ID')}</p>
+                </div>
+              </div>
+
+              <!-- General Info Cards -->
+              <div class="info-grid">
+                <div class="info-card">
+                  <div class="card-label">Identitas Peminjam</div>
+                  <div class="card-value">${data.user?.nama || user?.nama || 'Unknown User'}</div>
+                  <div class="status-badge">${data.status || 'PROSES'}</div>
+                </div>
+                <div class="info-card">
+                  <div class="card-label">Otorisasi Sistem</div>
+                  <div class="card-value">Access Granted</div>
+                  <div style="font-family: 'JetBrains Mono', monospace; font-size: 11px; color: #64748b; margin-top: 10px;">
+                    AUTH_KEY: ${Math.random().toString(16).substring(2, 10).toUpperCase()}<br>
+                    NODE: CC-MAIN-01
+                  </div>
+                </div>
+              </div>
+
+              <!-- Hardware Item Section -->
+              <div class="item-section">
+                <div class="item-header">Hardware Details</div>
+                <div class="item-body">
+                  <div>
+                    <div class="card-label">Nama Perangkat / Alat</div>
+                    <div class="item-name">${data.alat?.nama || 'Unspecified Device'}</div>
+                  </div>
+                  <div class="item-qty">${data.jumlah || 1} Unit</div>
+                </div>
+              </div>
+
+              <!-- Timeline Section -->
+              <div class="timeline-container">
+                <div class="timeline-line"></div>
+                <div class="timeline-points">
+                  <div class="point">
+                    <div class="point-icon">OUT</div>
+                    <div class="point-label">Waktu Ekstraksi</div>
+                    <div class="point-date">${pinjam.date}</div>
+                    <div class="card-label" style="margin-top:4px;">${pinjam.time}</div>
+                  </div>
+                  <div class="point">
+                    <div class="point-icon">IN</div>
+                    <div class="point-label">Batas Pengembalian</div>
+                    <div class="point-date">${kembali.date}</div>
+                    <div class="card-label" style="margin-top:4px;">${kembali.time}</div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Purpose Box -->
+              <div class="card-label">Tujuan / Keperluan Transmisi</div>
+              <div class="purpose-box">
+                <p>${data.keperluan || 'Tidak ada deskripsi keperluan yang dilampirkan dalam log.'}</p>
+              </div>
+
+              <!-- Signatures -->
+              <div class="signature-grid">
+                <div>
+                  <div class="sig-title">System Administrator</div>
+                  <div class="sig-line"></div>
+                  <div class="sig-name">Authorized Officer</div>
+                </div>
+                <div>
+                  <div class="sig-title">Peminjam / Eksekutor</div>
+                  <div class="sig-line"></div>
+                  <div class="sig-name">${data.user?.nama || user?.nama || '..................'}</div>
+                </div>
+                <div>
+                  <div class="sig-title">Petugas Pengembalian</div>
+                  <div class="sig-line"></div>
+                  <div class="sig-name">..................</div>
+                </div>
+              </div>
+
+              <!-- Footer -->
+              <div class="footer">
+                <div class="footer-terms">
+                  <strong>PENTING:</strong> Dokumen ini adalah bukti otorisasi fisik yang sah dari sistem Command Center. Harap bawa dokumen ini saat melakukan pengembalian perangkat. Keterlambatan pengembalian akan dicatat dalam log sistem.
+                </div>
+                <div class="barcode-container">
+                  ${fakeBarcode}
+                  <div style="font-family: 'JetBrains Mono', monospace; font-size: 10px; color: #64748b; margin-top: 4px; letter-spacing: 2px;">
+                    ${transactionId}
+                  </div>
+                </div>
+              </div>
+
+            </div>
+          </div>
+          <script>
+            // Memberikan sedikit waktu agar font dari Google termuat sebelum window print otomatis muncul
+            window.onload = function() {
+              setTimeout(function() {
+                window.print();
+              }, 600);
+            }
+          </script>
+        </body>
+      </html>
+    `);
+    printWindow.document.close();
+  };
   const safePeminjaman = Array.isArray(peminjaman) ? peminjaman : [];
   const safeAlats = Array.isArray(alats) ? alats : [];
 
@@ -441,20 +910,47 @@ export default function Peminjaman({ user }) {
                     <td style={{ padding: '16px', textAlign: 'center' }}>
                       <div style={{ display: 'flex', justifyContent: 'center', gap: '8px', alignItems: 'center' }}>
                         
-                        {/* ADMIN PANEL CONTROL */}
-                        {isAdmin && p.status === 'Menunggu' && (
-                          <>
-                            <button className="action-btn" onClick={() => handleUpdateStatus(p._id, 'setujui')} style={{ background: 'rgba(34,197,94,0.15)', color: '#22c55e', border: '1px solid rgba(34,197,94,0.3)' }}>✓ Setujui</button>
-                            <button className="action-btn" onClick={() => handleUpdateStatus(p._id, 'tolak')} style={{ background: 'rgba(239,68,68,0.15)', color: '#ef4444', border: '1px solid rgba(239,68,68,0.3)' }}>✗ Tolak</button>
-                          </>
-                        )}
-                        {isAdmin && p.status === 'Dipinjam' && (
-                          <button className="action-btn" onClick={() => handleUpdateStatus(p._id, 'kembalikan')} style={{ background: 'rgba(56,189,248,0.15)', color: '#38bdf8', border: '1px solid rgba(56,189,248,0.3)' }}>↩ Konfirmasi Kembali</button>
-                        )}
-                        {isAdmin && (p.status === 'Dikembalikan' || p.status === 'Kembali' || p.status === 'Ditolak') && (
-                           <span style={{ color: '#475569', fontSize: 12, fontWeight: 600 }}>🔒 ARSIP SELESAI</span>
-                        )}
+{/* ADMIN PANEL CONTROL */}
+{isAdmin && (
+  <div style={{ display: 'flex', gap: '8px', alignItems: 'center', justifyContent: 'center' }}>
+    
+    {/* Tombol Setuju / Tolak */}
+    {p.status === 'Menunggu' && (
+      <>
+        <button className="action-btn" onClick={() => handleUpdateStatus(p._id, 'setujui')} style={{ background: 'rgba(34,197,94,0.15)', color: '#22c55e', border: '1px solid rgba(34,197,94,0.3)' }}>✓ Setujui</button>
+        <button className="action-btn" onClick={() => handleUpdateStatus(p._id, 'tolak')} style={{ background: 'rgba(239,68,68,0.15)', color: '#ef4444', border: '1px solid rgba(239,68,68,0.3)' }}>✗ Tolak</button>
+      </>
+    )}
+    
+    {/* Tombol Konfirmasi Kembali */}
+    {p.status === 'Dipinjam' && (
+      <button className="action-btn" onClick={() => handleUpdateStatus(p._id, 'kembalikan')} style={{ background: 'rgba(56,189,248,0.15)', color: '#38bdf8', border: '1px solid rgba(56,189,248,0.3)' }}>↩ Konfirmasi Kembali</button>
+    )}
+    
+    {/* Label Arsip */}
+    {(p.status === 'Dikembalikan' || p.status === 'Kembali' || p.status === 'Ditolak') && (
+       <span style={{ color: '#475569', fontSize: 12, fontWeight: 600 }}>🔒 ARSIP SELESAI</span>
+    )}
 
+    {/* 👇 TOMBOL CETAK & DETAIL UNTUK ADMIN 👇 */}
+    <button 
+      className="action-btn" 
+      onClick={() => setDetailData(p)} 
+      style={{ 
+        background: 'rgba(148,163,184,0.15)', 
+        color: '#cbd5e1', 
+        border: '1px solid rgba(148,163,184,0.3)',
+        display: 'flex',
+        alignItems: 'center',
+        gap: '4px'
+      }}
+      title="Lihat Detail & Cetak Bukti"
+    >
+      🖨️ Cetak
+    </button>
+    
+  </div>
+)}
                         {/* MAHASISWA PANEL CONTROL */}
                         {!isAdmin && (
                           <div style={{ position: 'relative', display: 'inline-block' }}>
@@ -499,13 +995,9 @@ export default function Peminjaman({ user }) {
                                     {/* 1. JIKA STATUS: MENUNGGU */}
                                     {p.status === 'Menunggu' && (
                                       <>
-                                        <button onClick={() => { setDetailData(p); setActiveDropdown(null); }} className="dropdown-item" style={{ color: '#cbd5e1', borderBottom: '1px solid rgba(255,255,255,0.03)' }}>
+                                        <button onClick={() => { setDetailData(p); setActiveDropdown(null); }} className="dropdown-item" style={{ color: '#cbd5e1' }}>
                                           <span style={{ width: '24px', textAlign: 'center', fontSize: '15px' }}>📜</span> 
                                           <span>Detail Pengajuan</span>
-                                        </button>
-                                        <button onClick={() => { openPinjamBaruModal(); setActiveDropdown(null); }} className="dropdown-item" style={{ color: '#0ea5e9' }}>
-                                          <span style={{ width: '24px', textAlign: 'center', fontSize: '15px' }}>➕</span> 
-                                          <span>Pinjam Baru</span>
                                         </button>
                                       </>
                                     )}
@@ -535,13 +1027,9 @@ export default function Peminjaman({ user }) {
                                           <span style={{ width: '24px', textAlign: 'center', fontSize: '15px' }}>📜</span> 
                                           <span>Riwayat Pengembalian</span>
                                         </button>
-                                        <button onClick={() => { openPinjamUlangModal(p); setActiveDropdown(null); }} className="dropdown-item" style={{ color: '#38bdf8', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+                                        <button onClick={() => { openPinjamUlangModal(p); setActiveDropdown(null); }} className="dropdown-item" style={{ color: '#38bdf8' }}>
                                           <span style={{ width: '24px', textAlign: 'center', fontSize: '15px' }}>↻</span> 
                                           <span>Pinjam Kembali</span>
-                                        </button>
-                                        <button onClick={() => { openPinjamBaruModal(); setActiveDropdown(null); }} className="dropdown-item" style={{ color: '#0ea5e9' }}>
-                                          <span style={{ width: '24px', textAlign: 'center', fontSize: '15px' }}>➕</span> 
-                                          <span>Pinjam Baru</span>
                                         </button>
                                       </>
                                     )}
@@ -611,9 +1099,33 @@ export default function Peminjaman({ user }) {
                   </div>
                 </div>
 
-                <button onClick={() => setDetailData(null)} style={{ marginTop: '28px', width: '100%', padding: '14px', borderRadius: '14px', background: '#334155', color: 'white', border: 'none', cursor: 'pointer', fontWeight: 600, fontSize: 15, fontFamily: "'Space Grotesk', sans-serif" }}>
-                  Tutup Detail
-                </button>
+                <div style={{ display: 'flex', gap: '12px', marginTop: '28px' }}>
+                  <button onClick={() => setDetailData(null)} style={{ flex: 1, padding: '14px', borderRadius: '14px', background: '#334155', color: 'white', border: 'none', cursor: 'pointer', fontWeight: 600, fontSize: 15, fontFamily: "'Space Grotesk', sans-serif" }}>
+                    Tutup Detail
+                  </button>
+                  <button 
+                    onClick={() => handlePrint(detailData)} 
+                    style={{ 
+                      flex: 1, 
+                      padding: '14px', 
+                      borderRadius: '14px', 
+                      background: 'linear-gradient(135deg, #0ea5e9, #38bdf8)', 
+                      color: 'white', 
+                      border: 'none', 
+                      cursor: 'pointer', 
+                      fontWeight: 600, 
+                      fontSize: 15, 
+                      fontFamily: "'Space Grotesk', sans-serif",
+                      boxShadow: '0 4px 15px rgba(14,165,233,0.25)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: '8px'
+                    }}
+                  >
+                    <span>🖨️</span> Cetak Bukti
+                  </button>
+                </div>
               </motion.div>
             </div>
           )}

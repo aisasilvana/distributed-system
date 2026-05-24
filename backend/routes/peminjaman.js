@@ -41,7 +41,7 @@ router.post('/', auth, async (req, res) => {
   }
 });
 
-// GET PEMINJAMAN
+// GET PEMINJAMAN (Sudah Diperbarui untuk Menyaring Alat yang Terhapus)
 router.get('/', auth, async (req, res) => {
   try {
     // mahasiswa hanya lihat miliknya, admin/dosen lihat semua
@@ -54,7 +54,10 @@ router.get('/', auth, async (req, res) => {
       .populate('userId', 'nama email')
       .sort({ createdAt: -1 });
 
-    const result = data.map(p => ({
+    // Menyaring hanya data peminjaman yang data alatnya masih ada di database
+    const dataValid = data.filter(p => p.alatId !== null && p.alatId !== undefined);
+
+    const result = dataValid.map(p => ({
       _id: p._id,
       alat: p.alatId,
       user: p.userId,
